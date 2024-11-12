@@ -53,14 +53,12 @@ class MyHomePage extends HookWidget {
             : () async {
                 if (!permission.value) {
                   permission.value = await getPermission();
-                  // if (!permission.value) return;
                 }
                 final appDirectory = await getApplicationDocumentsDirectory();
                 final path = '${appDirectory.path}/audio.m4a';
                 await record.start(const RecordConfig(), path: path);
                 isRecording.value = true;
                 recordingPath.value = null;
-                // record.dispose();
               },
         child: Icon(isRecording.value ? Icons.stop : Icons.mic),
       ),
