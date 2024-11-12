@@ -35,7 +35,6 @@ class MyHomePage extends HookWidget {
               recordingPath.value ?? 'No records',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
-            //  if( isRecording.value )s
           ],
         ),
       ),
