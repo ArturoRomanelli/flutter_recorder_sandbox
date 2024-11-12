@@ -11,7 +11,7 @@ class MyHomePage extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final record = useMemoized(() => AudioRecorder());
-    useEffect(() => record.cancel, []);
+    useEffect(() => record.dispose, []);
 
     final recordingPath = useState<String?>(null);
     final isRecording = useState<bool>(false);
