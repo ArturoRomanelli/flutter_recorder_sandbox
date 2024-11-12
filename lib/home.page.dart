@@ -10,8 +10,10 @@ class MyHomePage extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final record = useMemoized(() => AudioRecorder());
+    useEffect(() => record.dispose, []);
+
     final recordingPath = useState<String?>(null);
-    final record = AudioRecorder();
     final isRecording = useState<bool>(false);
     final permission = useState<bool>(false);
 
@@ -33,7 +35,6 @@ class MyHomePage extends HookWidget {
               recordingPath.value ?? 'No records',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
-            //  if( isRecording.value )s
           ],
         ),
       ),
@@ -43,21 +44,21 @@ class MyHomePage extends HookWidget {
                 final path = await record.stop();
                 isRecording.value = false;
 
-                if (path != null) {
-                  recordingPath.value = path;
+                if (path == null) {
+                  throw Exception('Path is null - what happened?');
                 }
+
+                recordingPath.value = path;
               }
             : () async {
                 if (!permission.value) {
                   permission.value = await getPermission();
-                  // if (!permission.value) return;
                 }
                 final appDirectory = await getApplicationDocumentsDirectory();
                 final path = '${appDirectory.path}/audio.m4a';
                 await record.start(const RecordConfig(), path: path);
                 isRecording.value = true;
                 recordingPath.value = null;
-                // record.dispose();
               },
         child: Icon(isRecording.value ? Icons.stop : Icons.mic),
       ),
