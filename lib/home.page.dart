@@ -1,21 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:flutter_recorder_sandbox/audio_chat.controller.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:record/record.dart';
 
-class MyHomePage extends HookWidget {
+class MyHomePage extends HookConsumerWidget {
   const MyHomePage({required this.title, super.key});
 
   final String title;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final record = useMemoized(() => AudioRecorder());
     useEffect(() => record.dispose, []);
 
     final recordingPath = useState<String?>(null);
     final isRecording = useState<bool>(false);
     final permission = useState<bool>(false);
+
+    final list = ref.watch(audioChatListControllerProvider);
 
     Future<bool> getPermission() async {
       final hasPermission = await record.hasPermission();
@@ -27,17 +32,18 @@ class MyHomePage extends HookWidget {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text(title),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              recordingPath.value ?? 'No records',
+      body: list.isEmpty
+          ? Center(
+              child: Text(
+              'No records',
               style: Theme.of(context).textTheme.headlineMedium,
+            ))
+          : ListView.separated(
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
+              itemCount: list.length,
+              itemBuilder: (context, index) =>
+                  ChatBubble(audioPath: list[index]),
             ),
-          ],
-        ),
-      ),
       floatingActionButton: FloatingActionButton.large(
         onPressed: isRecording.value
             ? () async {
@@ -49,13 +55,14 @@ class MyHomePage extends HookWidget {
                 }
 
                 recordingPath.value = path;
+                ref.read(audioChatListControllerProvider.notifier).add(path);
               }
             : () async {
                 if (!permission.value) {
                   permission.value = await getPermission();
                 }
                 final appDirectory = await getApplicationDocumentsDirectory();
-                final path = '${appDirectory.path}/audio.m4a';
+                final path = '${appDirectory.path}/audio${list.length}.m4a';
                 await record.start(const RecordConfig(), path: path);
                 isRecording.value = true;
                 recordingPath.value = null;
@@ -67,6 +74,67 @@ class MyHomePage extends HookWidget {
   }
 }
 
+class ChatBubble extends HookWidget {
+  const ChatBubble({super.key, required this.audioPath});
+
+  final String audioPath;
+  @override
+  Widget build(BuildContext context) {
+    final player = useMemoized(() => AudioPlayer());
+    useEffect(() => player.dispose, []);
+
+    final isPlaying = useState<bool>(false);
+
+    final position = useStream<Duration>(player.onPositionChanged);
+    final duration = useState<Duration?>(null);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Container(
+          decoration: ShapeDecoration(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              color: Colors.green),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                onPressed: isPlaying.value
+                    ? () async {
+                        await player.pause();
+                        isPlaying.value = false;
+                      }
+                    : () async {
+                        duration.value = await player.getDuration();
+                        await player.play(DeviceFileSource(audioPath));
+                        isPlaying.value = true;
+                      },
+                icon: isPlaying.value
+                    ? const Icon(Icons.pause)
+                    : const Icon(Icons.play_arrow),
+              ),
+              Slider(
+                  onChanged: (value) async {
+                    final dur = await player.getDuration();
+                    if (dur == null) {
+                      return;
+                    }
+                    // duration.value = dur;
+                    final position = value * dur.inMilliseconds;
+
+                    player.seek(Duration(milliseconds: position.round()));
+                  },
+                  value: switch ((position.data, duration.value)) {
+                    (_, Duration.zero) => 0.0,
+                    (Duration position, Duration duration) =>
+                      position.inMilliseconds / duration.inMilliseconds,
+                    _ => 0.0,
+                  }),
+            ],
+          )),
+    );
+  }
+}
 // class HomePage extends StatefulWidget {
 //   const HomePage({super.key});
 
