@@ -1,9 +1,11 @@
+import 'dart:math' as math;
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_recorder_sandbox/audio_chat.controller.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:record/record.dart';
 
 class MyHomePage extends HookConsumerWidget {
@@ -35,14 +37,16 @@ class MyHomePage extends HookConsumerWidget {
       body: list.isEmpty
           ? Center(
               child: Text(
-              'No records',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ))
+                'No records',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            )
           : ListView.separated(
               separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemCount: list.length,
-              itemBuilder: (context, index) =>
-                  ChatBubble(audioPath: list[index]),
+              itemBuilder: (context, index) => ChatBubble(
+                audioPath: list[index],
+              ),
             ),
       floatingActionButton: FloatingActionButton.large(
         onPressed: isRecording.value
@@ -76,62 +80,64 @@ class MyHomePage extends HookConsumerWidget {
 
 class ChatBubble extends HookWidget {
   const ChatBubble({super.key, required this.audioPath});
-
   final String audioPath;
+
   @override
   Widget build(BuildContext context) {
     final player = useMemoized(() => AudioPlayer());
-    useEffect(() => player.dispose, []);
+    useEffect(() {
+      player.setSourceUrl(audioPath);
+      return player.dispose;
+    }, []);
 
     final isPlaying = useState<bool>(false);
-
-    final position = useStream<Duration>(player.onPositionChanged);
-    final duration = useState<Duration?>(null);
+    final asyncPosition = useStream<Duration>(player.onPositionChanged);
+    final position = asyncPosition.data?.inMilliseconds ?? 0;
+    final asyncDuration = useFuture<Duration?>(player.getDuration());
+    final duration = asyncDuration.data?.inMilliseconds ?? 0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Container(
-          decoration: ShapeDecoration(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              color: Colors.green),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                onPressed: isPlaying.value
-                    ? () async {
-                        await player.pause();
-                        isPlaying.value = false;
-                      }
-                    : () async {
-                        duration.value = await player.getDuration();
-                        await player.play(DeviceFileSource(audioPath));
-                        isPlaying.value = true;
-                      },
-                icon: isPlaying.value
-                    ? const Icon(Icons.pause)
-                    : const Icon(Icons.play_arrow),
-              ),
-              Slider(
-                  onChanged: (value) async {
-                    final dur = await player.getDuration();
-                    if (dur == null) {
-                      return;
+        decoration: ShapeDecoration(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            color: Colors.green),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: isPlaying.value
+                  ? () async {
+                      await player.pause();
+                      isPlaying.value = false;
                     }
-                    // duration.value = dur;
-                    final position = value * dur.inMilliseconds;
+                  : () async {
+                      await player.resume();
+                      isPlaying.value = true;
+                    },
+              icon: isPlaying.value
+                  ? const Icon(Icons.pause)
+                  : const Icon(Icons.play_arrow),
+            ),
+            Slider(
+                onChanged: (value) async {
+                  final dur = await player.getDuration();
+                  if (dur == null) {
+                    return;
+                  }
+                  final position = value * dur.inMilliseconds;
 
-                    player.seek(Duration(milliseconds: position.round()));
-                  },
-                  value: switch ((position.data, duration.value)) {
-                    (_, Duration.zero) => 0.0,
-                    (Duration position, Duration duration) =>
-                      position.inMilliseconds / duration.inMilliseconds,
-                    _ => 0.0,
-                  }),
-            ],
-          )),
+                  player.seek(Duration(milliseconds: position.round()));
+                },
+                value: switch ((position, duration)) {
+                  (0, _) || (_, 0) => 0,
+                  (final p, final d) => math.min(p / d, 1),
+                }),
+          ],
+        ),
+      ),
     );
   }
 }
