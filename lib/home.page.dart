@@ -86,13 +86,18 @@ class ChatBubble extends HookWidget {
   Widget build(BuildContext context) {
     final player = useMemoized(() => AudioPlayer());
     useEffect(() {
-      player.setSourceUrl(audioPath);
+      // player.setSourceDeviceFile(audioPath);
+
       return player.dispose;
     }, []);
 
-    final isPlaying = useState<bool>(false);
+    final asyncPlayerState =
+        useStream<PlayerState>(player.onPlayerStateChanged);
+    final playerState = asyncPlayerState.data ?? PlayerState.stopped;
+
     final asyncPosition = useStream<Duration>(player.onPositionChanged);
     final position = asyncPosition.data?.inMilliseconds ?? 0;
+
     final asyncDuration = useFuture<Duration?>(player.getDuration());
     final duration = asyncDuration.data?.inMilliseconds ?? 0;
 
@@ -100,24 +105,23 @@ class ChatBubble extends HookWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Container(
         decoration: ShapeDecoration(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            color: Colors.green),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          color: Colors.green,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              onPressed: isPlaying.value
+              onPressed: playerState == PlayerState.playing
                   ? () async {
                       await player.pause();
-                      isPlaying.value = false;
                     }
                   : () async {
-                      await player.resume();
-                      isPlaying.value = true;
+                      await player.play(DeviceFileSource(audioPath));
                     },
-              icon: isPlaying.value
+              icon: playerState == PlayerState.playing
                   ? const Icon(Icons.pause)
                   : const Icon(Icons.play_arrow),
             ),
@@ -141,49 +145,3 @@ class ChatBubble extends HookWidget {
     );
   }
 }
-// class HomePage extends StatefulWidget {
-//   const HomePage({super.key});
-
-//   @override
-//   State<HomePage> createState() => _HomePageState();
-// }
-
-// class _HomePageState extends State<HomePage> {
-//   @override
-//   Widget build(BuildContext context) {
-//     final record = AudioRecorder();
-
-//     bool isRecording = false;
-//     String? recordingPath;
-
-//     return Scaffold(
-//       body: Center(child: Text(recordingPath ?? 'No records')),
-//       floatingActionButton: FloatingActionButton.large(
-//         onPressed: () async {
-//           if (isRecording) {
-//             final path = await record.stop();
-
-//             if (path != null) {
-//               setState(() {
-//                 isRecording = false;
-//                 recordingPath = path;
-//               });
-//             }
-//           } else {
-//             if (await record.hasPermission()) {
-//               final appDirectory = await getApplicationDocumentsDirectory();
-//               final path = '${appDirectory.path}/audio.m4a';
-//               await record.start(const RecordConfig(), path: path);
-//               setState(() {
-//                 isRecording = true;
-//                 recordingPath = null;
-//               });
-//             }
-//           }
-//         },
-//         child: Icon(isRecording ? Icons.stop : Icons.mic),
-//       ),
-//       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-//     );
-//   }
-// }
