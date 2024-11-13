@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_recorder_sandbox/audio_chat.controller.dart';
+import 'package:flutter_recorder_sandbox/player.widget.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -17,6 +18,8 @@ class MyHomePage extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final record = useMemoized(() => AudioRecorder());
     useEffect(() => record.dispose, []);
+    final player = useMemoized(() => AudioPlayer());
+    useEffect(() => player.dispose, []);
 
     final recordingPath = useState<String?>(null);
     final isRecording = useState<bool>(false);
@@ -44,7 +47,8 @@ class MyHomePage extends HookConsumerWidget {
           : ListView.separated(
               separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemCount: list.length,
-              itemBuilder: (context, index) => ChatBubble(
+              itemBuilder: (context, index) => PlayerWidget(
+                player: player,
                 audioPath: list[index],
               ),
             ),
@@ -86,7 +90,7 @@ class ChatBubble extends HookWidget {
   Widget build(BuildContext context) {
     final player = useMemoized(() => AudioPlayer());
     useEffect(() {
-      // player.setSourceDeviceFile(audioPath);
+      player.setSourceDeviceFile(audioPath);
 
       return player.dispose;
     }, []);
@@ -119,7 +123,7 @@ class ChatBubble extends HookWidget {
                       await player.pause();
                     }
                   : () async {
-                      await player.play(DeviceFileSource(audioPath));
+                      await player.resume();
                     },
               icon: playerState == PlayerState.playing
                   ? const Icon(Icons.pause)
@@ -145,3 +149,52 @@ class ChatBubble extends HookWidget {
     );
   }
 }
+
+
+
+// class HomePage extends StatefulWidget {
+//   const HomePage({super.key});
+
+//   @override
+//   State<HomePage> createState() => _HomePageState();
+// }
+
+// class _HomePageState extends State<HomePage> {
+//   @override
+//   Widget build(BuildContext context) {
+//     final record = AudioRecorder();
+
+//     bool isRecording = false;
+//     String? recordingPath;
+
+//     return Scaffold(
+//       body: Center(child: Text(recordingPath ?? 'No records')),
+//       floatingActionButton: FloatingActionButton.large(
+//         onPressed: () async {
+//           if (isRecording) {
+//             final path = await record.stop();
+
+//             if (path != null) {
+//               setState(() {
+//                 isRecording = false;
+//                 recordingPath = path;
+//               });
+//             }
+//           } else {
+//             if (await record.hasPermission()) {
+//               final appDirectory = await getApplicationDocumentsDirectory();
+//               final path = '${appDirectory.path}/audio.m4a';
+//               await record.start(const RecordConfig(), path: path);
+//               setState(() {
+//                 isRecording = true;
+//                 recordingPath = null;
+//               });
+//             }
+//           }
+//         },
+//         child: Icon(isRecording ? Icons.stop : Icons.mic),
+//       ),
+//       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+//     );
+//   }
+// }
